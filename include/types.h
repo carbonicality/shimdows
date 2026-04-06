@@ -17,6 +17,7 @@ typedef s64 ssize_t;
 #define true 1
 #define false 0
 typedef u8 bool8;
+typedef u8 bool;
 
 #define PAGE_SIZE 4096ULL
 #define PAGE_ALIGN(x) (((x)+PAGE_SIZE-1)&~(PAGE_SIZE-1))

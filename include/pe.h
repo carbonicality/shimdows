@@ -79,7 +79,7 @@ typedef struct {
     IMAGE_FILE_HEADER FileHeader;
     IMAGE_OPTIONAL_HEADER64 OptionalHeader;
     IMAGE_DATA_DIRECTORY DataDirectory[IMAGE_NUMBEROF_DIRECTORY_ENTRIES];
-} __attribute__((packed)) IMAGE_NT_HEADER64;
+} __attribute__((packed)) IMAGE_NT_HEADERS64;
 
 /*section header*/
 typedef struct {
