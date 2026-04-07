@@ -67,3 +67,40 @@ static void pe_map_sections(const void *file_data, void *load_base, const IMAGE_
         }
     }
 }
+
+/*apply base relocs*/
+static void pe_apply_relocs(void *load_base, const IMAGE_NT_HEADERS64 *nt, u64 preferred_base)
+{
+    s64 delta = (s64)(uintptr_t)load_base - (s64)preferred_base;
+    if (delta==0) return;
+
+    const IMAGE_DATA_DIRECTORY *reloc_dir=&nt->DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC];
+    
+    if (reloc_dir->VirtualAddress==0||reloc_dir->Size==0) return;
+
+    const u8 *reloc_data = (const u8 *)load_base + reloc_dir->VirtualAddress;
+    const u8 *reloc_end = reloc_data+reloc_dir->Size;
+
+    while (reloc_data < reloc_end) {
+        const IMAGE_BASE_RELOCATION *block=(const IMAGE_BASE_RELOCATION *)reloc_data;
+
+        if (block->SizeOfBlock<sizeof(IMAGE_BASE_RELOCATION)) break;
+
+        u32 num_entries = (block->SizeOfBlock - sizeof(IMAGE_BASE_RELOCATION))/sizeof(u16);
+        const u16 *entries=(const u16*)(block+1);
+
+        for (u32 i=0; i<num_entries;i++) {
+            u16 entry = entries[i];
+            u8 type = entry >> 12;
+            u16 offset = entry & 0x0FFF;
+
+            if (type == IMAGE_REL_BASED_ABSOLUTE) continue; /*padding*/
+
+            if (type == IMAGE_REL_BASED_DIR64) {
+                u64 *target = (u64 *)((u8 *)load_base + block->VirtualAddress+offset);
+                *target+=delta;
+            }
+        }
+        reloc_data+=block->SizeOfBlock;
+    }
+}
