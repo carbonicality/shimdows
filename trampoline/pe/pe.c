@@ -104,3 +104,28 @@ static void pe_apply_relocs(void *load_base, const IMAGE_NT_HEADERS64 *nt, u64 p
         reloc_data+=block->SizeOfBlock;
     }
 }
+
+void *pe_load(const void *file_data, size_t file_size, void *load_base)
+{
+    if (!pe_validate(file_data,file_size)) return NULL;
+    const IMAGE_NT_HEADERS64 *nt = pe_get_nt(file_data);
+    
+    memset(load_base,0,nt->OptionalHeader.SizeOfImage);
+    memcpy(load_base,file_data,nt->OptionalHeader.SizeOfHeaders);
+    pe_map_sections(file_data,load_base,nt);
+    pe_apply_relocs(load_base,nt,nt->OptionalHeader.ImageBase);
+    
+    return (u8 *)load_base + nt->OptionalHeader.AddressOfEntryPoint;
+}
+
+u32 pe_image_size(const void *file_data,size_t file_size)
+{
+    if (!pe_validate(file_data,file_size)) return 0;
+    return pe_get_nt(file_data)->OptionalHeader.SizeOfImage;
+}
+
+u64 pe_preferred_base(const void *file_data, size_t file_size)
+{
+    if (!pe_validate(file_data, file_size)) return 0;
+    return pe_get_nt(file_data)->OptionalHeader.ImageBase;
+}
