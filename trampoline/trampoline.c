@@ -433,3 +433,51 @@ static void build_system_table(void)
     st->NumberOfTableEntries = 0;
     st->ConfigurationTable = NULL;
 }
+
+/*main trampoline entry*/
+void trampoline_main(void)
+{
+    /*fixup gdt base*/
+    fixup_gdt_base();
+
+    /*build efi mem map*/
+    build_efi_memmap();
+
+    /*init bump allocator*/
+    size_t pool_size = (size_t)((uintptr_t)&_pool_end-(uintptr_t)&_pool_start);
+    mem_alloc_init(&_pool_start,pool_size);
+
+    /*build fake UEFI tables*/
+    build_runtime_services();
+    build_boot_services();
+    build_system_table();
+
+    /*load bootmgfw into image area*/
+    const void *bm_data = (const void *)&_bootmgr_data;
+    u64 bm_size = _bootmgr_size;
+
+    void *bm_load=(void *)&_image_load_area;
+    void *bm_entry=pe_load(bm_data,bm_size,bm_load);
+
+    if (!bm_entry) {
+        for(;;) __asm__("hlt");
+    }
+
+    /*create a handle for bootmgfw itself*/
+    EFI_HANDLE bm_handle=alloc_handle();
+
+    EFI_LOADED_IMAGE_PROTOCOL *bm_li = mem_alloc(sizeof(*bm_li));
+    static const EFI_GUID loaded_image_guid = EFI_LOADED_IMAGE_PROTOCOL_GUID;
+    bm_li->Revision = 0x1000;
+    bm_li->ImageBase = bm_load;
+    bm_li->ImageSize = pe_image_size(bm_data,bm_size);
+    bm_li->ImageCodeType = EFI_LOADER_CODE;
+    bm_li->ImageDataType = EFI_LOADER_DATA;
+    install_protocol(bm_handle,&loaded_image_guid,bm_li);
+
+    /*jump to bootmgfw entry point (one way trip)*/
+    jump_to_bootmgr(bm_entry, bm_handle, &g_system_table);
+
+    /*unreachable*/
+    for (;;) __asm__("hlt");
+}
