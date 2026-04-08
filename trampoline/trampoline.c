@@ -217,3 +217,75 @@ stub_LocateProtocol(EFI_GUID *guid, void *registration, void **iface)
     }
     return EFI_NOT_FOUND;
 }
+
+/*
+ * stub_LoadImage
+ * bootmgfw calls this to load winload.efi
+ */
+
+static EFI_STATUS __attribute__((ms_abi))
+stub_LoadImage(bool boot_policy,EFI_HANDLE parent, EFI_DEVICE_PATH_PROTOCOL *path, void *src, u64 src_size, EFI_HANDLE *image_handle)
+{
+    (void)boot_policy; (void)parent; (void)path;
+
+    const void *wl_data = (const void *)&_winload_data;
+    u64 wl_size=_winload_size;
+
+    u32 image_bytes=pe_image_size(wl_data,wl_size);
+    if (image_bytes==0) return EFI_INVALID_PARAMETER;
+
+    void *load_at = (void *)&_winload_load_area;
+    void *entry = pe_load(wl_data, wl_size, load_at);
+    if (!entry) return EFI_INVALID_PARAMETER;
+
+    EFI_LOADED_IMAGE_PROTOCOL *li = mem_alloc(sizeof(*li));
+    if (!li) return EFI_OUT_OF_RESOURCES;
+
+    static const EFI_GUID loaded_image_guid=EFI_LOADED_IMAGE_PROTOCOL_GUID;
+
+    li->Revision = 0x1000;
+    li->ParentHandle = parent;
+    li->ImageBase = load_at;
+    li->ImageSize = image_bytes;
+    li->ImageCodeType = EFI_LOADER_CODE;
+    li->ImageDataType = EFI_LOADER_DATA;
+
+    EFI_HANDLE h = alloc_handle();
+    if (!h) return EFI_OUT_OF_RESOURCES;
+
+    install_protocol(h,&loaded_image_guid,li);
+
+    li->Reserved=entry;
+
+    *image_handle=h;
+    return EFI_SUCCESS;
+}
+
+static EFI_STATUS __attribute__((ms_abi))
+stub_StartImage(EFI_HANDLE image_handle, u64 *exit_data_size, CHAR16 **exit_data)
+{
+    (void)exit_data_size; (void)exit_data;
+    static const EFI_GUID loaded_image_guid = EFI_LOADED_IMAGE_PROTOCOL_GUID;
+
+    EFI_LOADED_IMAGE_PROTOCOL *li=NULL;
+    EFI_STATUS st = lookup_protocol(image_handle, &loaded_image_guid, (void**)&li);
+    if (st != EFI_SUCCESS || !li) return EFI_INVALID_PARAMETER;
+
+    void *entry = li->Reserved;
+    if (!entry) return EFI_INVALID_PARAMETER;
+
+    extern EFI_SYSTEM_TABLE g_system_table;
+    
+    EFI_IMAGE_ENTRY_POINT ep = (EFI_IMAGE_ENTRY_POINT)entry;
+    return ep(image_handle, &g_system_table);
+}
+
+static EFI_STATUS __attribute__((ms_abi))
+stub_ExitBootServices(EFI_HANDLE image_handle, u64 map_key)
+{
+    (void)image_handle;
+    /* we accept any key because we dont actually have live boot services */
+    (void)map_key;
+    return EFI_SUCCESS;
+}
+
