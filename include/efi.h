@@ -75,7 +75,7 @@ typedef struct {
 
 typedef struct {
     u32 Type;
-    u32 pad;
+    u32 Pad;
     EFI_PHYSICAL_ADDRESS PhysicalStart;
     EFI_VIRTUAL_ADDRESS VirtualStart;
     u64 NumberOfPages;

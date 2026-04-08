@@ -70,3 +70,74 @@ static bool guid_eq(const EFI_GUID *a, const EFI_GUID *b)
 }
 
 /*handle database*/
+#define MAX_HANDLES 16
+#define MAX_PROTOCOLS 8
+
+typedef struct {
+    EFI_GUID guid;
+    void *interface;
+} protocol_entry_t;
+
+typedef struct {
+    bool used;
+    protocol_entry_t protocols[MAX_PROTOCOLS];
+    int num_protocols;
+} handle_entry_t;
+
+static handle_entry_t handles[MAX_HANDLES];
+
+static EFI_HANDLE alloc_handle(void)
+{
+    for (int i=0;i<MAX_HANDLES;i++) {
+        if (!handles[i].used) {
+            handles[i].used = true;
+            handles[i].num_protocols = 0;
+            return (EFI_HANDLE)(uintptr_t)(i+1);
+        }
+    }
+    return NULL;
+}
+
+static handle_entry_t *get_handle(EFI_HANDLE h)
+{
+    int idx=(int)(uintptr_t)h-1;
+    if (idx<0||idx>=MAX_HANDLES||!handles[idx].used) return NULL;
+    return &handles[idx];
+}
+
+static EFI_STATUS install_protocol(EFI_HANDLE h, const EFI_GUID *guid, void *iface)
+{
+    handle_entry_t *he=get_handle(h);
+    if (!he) return EFI_INVALID_PARAMETER;
+    if (he->num_protocols>=MAX_PROTOCOLS) return EFI_OUT_OF_RESOURCES;
+
+    he->protocols[he->num_protocols].guid=*guid;
+    he->protocols[he->num_protocols].interface=iface;
+    he->num_protocols++;
+    return EFI_SUCCESS;
+}
+
+static EFI_STATUS lookup_protocol(EFI_HANDLE h, const EFI_GUID *guid, void **iface)
+{
+    handle_entry_t *he=get_handle(h);
+    if (!he) return EFI_NOT_FOUND;
+
+    for (int i=0;i<he->num_protocols;i++) {
+        if (guid_eq(&he->protocols[i].guid,guid)) {
+            if (iface) *iface=he->protocols[i].interface;
+            return EFI_SUCCESS;
+        }
+    }
+    return EFI_NOT_FOUND;
+}
+
+/*
+ * boot services stubs
+ * all functions use the ms x64 ABI (__attribute__((ms_abi)))
+ */
+
+static EFI_STATUS __attribute__((ms_abi))
+stub_AllocatePages(EFI_ALLOCATE_TYPE type, u32 mem_type, u64 pages, EFI_PHYSICAL_ADDRESS *addr)
+{
+    
+}
