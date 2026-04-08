@@ -303,3 +303,13 @@ stub_SetVariable(CHAR16 *name, EFI_GUID *guid, u32 attrs, u64 data_size, void *d
     (void)name;(void)guid;(void)attrs;(void)data_size;(void)data;
     return EFI_SUCCESS;
 }
+
+/*console output stub*/
+static EFI_STATUS __attribute__((ms_abi))
+stub_OutputString(EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL *this, CHAR16 *str)
+{
+    (void)this;
+    (void)str;
+    return EFI_SUCCESS;
+}
+
