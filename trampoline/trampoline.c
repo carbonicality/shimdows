@@ -289,3 +289,17 @@ stub_ExitBootServices(EFI_HANDLE image_handle, u64 map_key)
     return EFI_SUCCESS;
 }
 
+/*runtime services stubs*/
+static EFI_STATUS __attribute__((ms_abi))
+stub_GetVariable(CHAR16 *name, EFI_GUID *guid, u32 *attrs, u64 *data_size, void *data)
+{
+    (void)name; (void)guid; (void)attrs; (void)data; (void)data_size;
+    return EFI_NOT_FOUND;
+}
+
+static EFI_STATUS __attribute__((ms_abi))
+stub_SetVariable(CHAR16 *name, EFI_GUID *guid, u32 attrs, u64 data_size, void *data)
+{
+    (void)name;(void)guid;(void)attrs;(void)data_size;(void)data;
+    return EFI_SUCCESS;
+}
