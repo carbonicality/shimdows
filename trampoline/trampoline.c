@@ -139,5 +139,81 @@ static EFI_STATUS lookup_protocol(EFI_HANDLE h, const EFI_GUID *guid, void **ifa
 static EFI_STATUS __attribute__((ms_abi))
 stub_AllocatePages(EFI_ALLOCATE_TYPE type, u32 mem_type, u64 pages, EFI_PHYSICAL_ADDRESS *addr)
 {
-    
+    size_t size=pages*4096;
+    void *p = mem_alloc(size);
+    if (!p) return EFI_OUT_OF_RESOURCES;
+
+    *addr = (EFI_PHYSICAL_ADDRESS)(uintptr_t)p;
+    return EFI_SUCCESS;
+}
+
+static EFI_STATUS __attribute__((ms_abi))
+stub_FreePages(EFI_PHYSICAL_ADDRESS addr, u64 pages)
+{
+    (void)addr; (void)pages;
+    return EFI_SUCCESS;
+}
+
+static EFI_STATUS __attribute__((ms_abi))
+stub_GetMemoryMap(u64 *map_size, EFI_MEMORY_DESCRIPTOR *map, u64 *map_key, u64 *desc_size, u32 *desc_version)
+{
+    u64 needed = efi_memmap_count*sizeof(EFI_MEMORY_DESCRIPTOR);
+    *desc_size=sizeof(EFI_MEMORY_DESCRIPTOR);
+    *desc_version=EFI_MEMORY_DESCRIPTOR_VERSION;
+    *map_key=efi_memmap_key;
+
+    if (*map_size<needed) {
+        *map_size=needed;
+        return EFI_BUFFER_TOO_SMALL;
+    }
+
+    memcpy(map,efi_memmap,needed);
+    *map_size=needed;
+    return EFI_SUCCESS;
+}
+
+static EFI_STATUS __attribute__((ms_abi))
+stub_AllocatePool(u32 pool_type, u64 size, void **buf)
+{
+    (void)pool_type;
+    void *p=mem_alloc(size);
+    if (!p) return EFI_OUT_OF_RESOURCES;
+    *buf = p;
+    return EFI_SUCCESS;
+}
+
+static EFI_STATUS __attribute__((ms_abi))
+stub_FreePool(void *buf)
+{
+    mem_free(buf);
+    return EFI_SUCCESS;
+}
+
+static EFI_STATUS __attribute__((ms_abi))
+stub_HandleProtocol(EFI_HANDLE handle, EFI_GUID *guid, void **iface)
+{
+    return lookup_protocol(handle,guid,iface);
+}
+
+static EFI_STATUS __attribute__((ms_abi))
+stub_OpenProtocol(EFI_HANDLE handle, EFI_GUID *guid, void **iface, EFI_HANDLE agent, EFI_HANDLE controller, u32 attributes)
+{
+    (void)agent; (void)controller; (void)attributes;
+    return lookup_protocol(handle,guid,iface);
+}
+
+static EFI_STATUS __attribute__((ms_abi))
+stub_LocateProtocol(EFI_GUID *guid, void *registration, void **iface)
+{
+    (void)registration;
+    for (int i=0;i<MAX_HANDLES;i++) {
+        if (!handles[i].used) continue;
+        for (int j=0;j<handles[i].num_protocols;j++) {
+            if (guid_eq(&handles[i].protocols[j].guid,guid)) {
+                if (iface) *iface=handles[i].protocols[j].interface;
+                return EFI_SUCCESS;
+            }
+        }
+    }
+    return EFI_NOT_FOUND;
 }
