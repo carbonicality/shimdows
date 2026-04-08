@@ -313,3 +313,10 @@ stub_OutputString(EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL *this, CHAR16 *str)
     return EFI_SUCCESS;
 }
 
+/*global tables*/
+EFI_SYSTEM_TABLE g_system_table;
+EFI_BOOT_SERVICES g_boot_services;
+EFI_RUNTIME_SERVICES g_runtime_services;
+
+static EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL g_conout;
+static EFI_SIMPLE_TEXT_INPUT_PROTOCOL g_conin;
