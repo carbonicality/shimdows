@@ -376,3 +376,60 @@ static void build_boot_services(void)
     bs->SetMem = (void*)stub_FreePool;
     bs->CreateEventEx = (void*)stub_FreePool;
 }
+
+static void build_runtime_services(void)
+{
+    EFI_RUNTIME_SERVICES *rs = &g_runtime_services;
+    memset(rs,0,sizeof(*rs));
+
+    rs->Hdr.Signature = 0x56524553544e5552ULL; /*RUNTSERV*/
+    rs->Hdr.Revision = EFI_2_70_SYSTEM_TABLE_REVISION;
+    rs->Hdr.HeaderSize = sizeof(EFI_RUNTIME_SERVICES);
+
+    rs->GetVariable=stub_GetVariable;
+    rs->SetVariable=stub_SetVariable;
+
+    rs->GetTime = (void*)stub_FreePool;
+    rs->SetTime = (void*)stub_FreePool;
+    rs->GetWakeupTime = (void*)stub_FreePool;
+    rs->SetWakeupTime = (void*)stub_FreePool;
+    rs->SetVirtualAddressMap = (void*)stub_FreePool;
+    rs->ConvertPointer = (void*)stub_FreePool;
+    rs->GetNextVariableName = (void*)stub_FreePool;
+    rs->GetNextHighMonotonicCount = (void*)stub_FreePool;
+    rs->ResetSystem = (void*)stub_FreePool;
+    rs->UpdateCapsule = (void*)stub_FreePool;
+    rs->QueryCapsuleCapabilities = (void*)stub_FreePool;
+    rs->QueryVariableInfo = (void*)stub_FreePool;
+}
+
+static void build_system_table(void)
+{
+    g_conout.OutputString = stub_OutputString;
+
+    EFI_SYSTEM_TABLE *st = &g_system_table;
+    memset(st,0,sizeof(*st));
+
+    st->Hdr.Signature = EFI_SYSTEM_TABLE_SIGNATURE;
+    st->Hdr.Revision = EFI_2_70_SYSTEM_TABLE_REVISION;
+    st->Hdr.HeaderSize=sizeof(EFI_SYSTEM_TABLE);
+
+    static CHAR16 vendor[] = {
+        's','h','i','m','d','o','w','s',0
+    };
+    st->FirmwareVendor=vendor;
+    st->FirmwareRevision=1;
+
+    st->ConsoleOutHandle=alloc_handle();
+    st->ConOut = &g_conout;
+    st->ConsoleInHandle = alloc_handle();
+    st->ConIn = &g_conin;
+    st->StdErrHandle=st->ConsoleOutHandle;
+    st->StdErr=&g_conout;
+
+    st->RuntimeServices=&g_runtime_services;
+    st->BootServices=&g_boot_services;
+
+    st->NumberOfTableEntries = 0;
+    st->ConfigurationTable = NULL;
+}
