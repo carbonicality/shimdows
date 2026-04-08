@@ -320,3 +320,59 @@ EFI_RUNTIME_SERVICES g_runtime_services;
 
 static EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL g_conout;
 static EFI_SIMPLE_TEXT_INPUT_PROTOCOL g_conin;
+
+/* fake UEFI environment */
+static void build_boot_services(void)
+{
+    EFI_BOOT_SERVICES *bs = &g_boot_services;
+    memset(bs,0,sizeof(*bs));
+
+    bs->Hdr.Signature=0x56524553544f4f42ULL; /*BOOTSERV*/
+    bs->Hdr.Revision=EFI_2_70_SYSTEM_TABLE_REVISION;
+    bs->Hdr.HeaderSize=sizeof(EFI_BOOT_SERVICES);
+
+    bs->AllocatePages = stub_AllocatePages;
+    bs->FreePages = stub_FreePages;
+    bs->GetMemoryMap = stub_GetMemoryMap;
+    bs->AllocatePool = stub_AllocatePool;
+    bs->FreePool = stub_FreePool;
+    bs->HandleProtocol = stub_HandleProtocol;
+    bs->OpenProtocol = stub_OpenProtocol;
+    bs->LocateProtocol = stub_LocateProtocol;
+    bs->LoadImage = stub_LoadImage;
+    bs->StartImage = stub_StartImage;
+    bs->ExitBootServices = stub_ExitBootServices;
+
+    /*stubs for things we dont implement but cant be NULL*/
+    bs->RaiseTPL = (void*)stub_FreePool;
+    bs->RestoreTPL = (void*)stub_FreePool;
+    bs->CreateEvent = (void*)stub_FreePool;
+    bs->SetTimer = (void*)stub_FreePool;
+    bs->WaitForEvent = (void*)stub_FreePool;
+    bs->SignalEvent = (void*)stub_FreePool;
+    bs->CloseEvent = (void*)stub_FreePool;
+    bs->CheckEvent = (void*)stub_FreePool;
+    bs->InstallProtocolInterface = (void*)stub_FreePool;
+    bs->ReinstallProtocolInterface = (void*)stub_FreePool;
+    bs->RegisterProtocolNotify = (void*)stub_FreePool;
+    bs->LocateHandle = (void*)stub_FreePool;
+    bs->LocateDevicePath = (void*)stub_FreePool;
+    bs->InstallConfigurationTable = (void*)stub_FreePool;
+    bs->Exit = (void*)stub_FreePool;
+    bs->UnloadImage = (void*)stub_FreePool;
+    bs->GetNextMonotonicCount = (void*)stub_FreePool;
+    bs->Stall = (void*)stub_FreePool;
+    bs->SetWatchdogTimer = (void*)stub_FreePool;
+    bs->ConnectController = (void*)stub_FreePool;
+    bs->DisconnectController = (void*)stub_FreePool;
+    bs->CloseProtocol = (void*)stub_FreePool;
+    bs->OpenProtocolInformation = (void*)stub_FreePool;
+    bs->ProtocolsPerHandle = (void*)stub_FreePool;
+    bs->LocateHandleBuffer = (void*)stub_FreePool;
+    bs->InstallMultipleProtocolInterfaces = (void*)stub_FreePool;
+    bs->UninstallMultipleProtocolInterfaces = (void*)stub_FreePool;
+    bs->CalculateCrc32 = (void*)stub_FreePool;
+    bs->CopyMem = (void*)stub_FreePool;
+    bs->SetMem = (void*)stub_FreePool;
+    bs->CreateEventEx = (void*)stub_FreePool;
+}
