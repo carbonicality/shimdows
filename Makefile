@@ -1,7 +1,7 @@
 CROSS ?= x86_64-elf-
-CC := $(CROSS)gcc
+CC := gcc
 CROSS_CC := $(CROSS)gcc
-CROSS_AS := $(CROSS)as
+CROSS_AS := $(CROSS)gcc
 CROSS_LD := $(CROSS)ld
 CROSS_OBJCOPY := $(CROSS)objcopy
 
@@ -64,7 +64,7 @@ TRAMP_OBJS := $(TRAMP_SRCS:.c=.o) $(TRAMP_ASM:.S=.o)
 
 %.o: %.S
 	@echo "  AS    $<"
-	$(CROSS_AS) $(TRAMP_ASFLAGS) -c -o $@ $<
+	$(CROSS_CC) $(TRAMP_CFLAGS) -c -o $@ $<
 
 trampoline/trampoline.elf: $(TRAMP_OBJS)
 	@echo "  LD    trampoline.elf"

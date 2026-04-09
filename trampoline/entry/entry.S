@@ -114,7 +114,6 @@ _stack_top:
 jump_to_bootmgr:
     mov r10, rdi 
     mov rcx, rsi
-    mov rdx, rdx
     and rsp, ~0xFULL
     sub rsp, 32
     jmp r10 
