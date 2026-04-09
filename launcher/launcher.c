@@ -50,3 +50,30 @@ typedef struct {
 static mem_region_t mem_regions[MAX_MEM_REGIONS];
 static int num_regions=0;
 
+static int parse_iomem(void)
+{
+    FILE *f = fopen("/proc/iomem","r");
+    if (!f) {
+        perror("open /proc/iomem");
+        return -1;
+    }
+
+    char line[256];
+    while (fgets(line,sizeof(line),f)) {
+        uint64_t start, end;
+        char type[64];
+
+        if (line[0]==' ') continue;
+        
+        if (sscanf(line, "%1x-%1x : %63[^\n]", &start, &end, type)==3) {
+            if (num_regions >= MAX_MEM_REGIONS) break;
+            mem_regions[num_regions].start=start;
+            mem_regions[num_regions].end=end;
+            memcpy(mem_regions[num_regions].type,type,sizeof(mem_regions[0].type)-1);
+            num_regions++;
+        }
+    }
+    fclose(f);
+    printf("[launcher] parsed %d iomem regions\n",num_regions);
+    return 0;
+}
