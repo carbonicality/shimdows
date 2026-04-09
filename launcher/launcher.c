@@ -77,3 +77,39 @@ static int parse_iomem(void)
     printf("[launcher] parsed %d iomem regions\n",num_regions);
     return 0;
 }
+
+static void *load_file(const char *path, size_t *out_size)
+{
+    int fd = open(path, O_RDONLY);
+    if (fd < 0) {
+        fprintf(stderr,"[launcher] cannot open %s: %s\n",path,strerror(errno));
+        return NULL;
+    }
+    struct stat st;
+    if (fstat(fd, &st) < 0) {
+        perror("fstat");
+        close(fd);
+        return NULL;
+    }
+
+    void *buf = mmap(NULL,st.st_size,PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_ANONYMOUS,-1,0);
+    if (buf == MAP_FAILED) {
+        buf = malloc(st.st_size);
+        if (!buf) {
+            fprintf(stderr,"[launcher] OOM loading %s\n",path);
+            close(fd);
+            return NULL;
+        }
+    }
+    ssize_t n = read(fd,buf,st.st_size);
+    close(fd);
+
+    if (n!=st.st_size) {
+        fprintf(stderr,"[launcher] short read on %s\n",path);
+        free(buf);
+        return NULL;
+    }
+    *out_size = st.st_size;
+    printf("[launcher] loaded %s (%zu bytes)\n",path,*out_size);
+    return buf;
+}
