@@ -3,6 +3,7 @@
  * reads from /proc/iomem, loads trampoline, kexec_loads then triggers the jump
  */
 
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,12 +11,9 @@
 #include <stdbool.h>
 #include <fcntl.h>
 #include <unistd.h>
-#define _GNU_SOURCE
 #include <errno.h>
 #include <sys/syscall.h>
 #include <sys/reboot.h>
-#include <unistd.h>
-#define _GNU_SOURCE
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <linux/reboot.h>
@@ -65,7 +63,7 @@ static int parse_iomem(void)
 
         if (line[0]==' ') continue;
         
-        if (sscanf(line, "%1x-%1x : %63[^\n]", &start, &end, type)==3) {
+        if (sscanf(line, "%lx-%lx : %63[^\n]", &start, &end, type)==3) {
             if (num_regions >= MAX_MEM_REGIONS) break;
             mem_regions[num_regions].start=start;
             mem_regions[num_regions].end=end;
@@ -215,7 +213,7 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    const char *trampoline_main=argv[1];
+    const char *trampoline_path=argv[1];
     const char *bootmgr_path=argv[2];
     const char *winload_path=argv[3];
 
@@ -271,6 +269,7 @@ int main(int argc, char *argv[])
 
     printf("[launcher] kexec_load OK, jumping to trampoline.\n");
     printf("[launcher] no return from here\n");
+    fflush(stdout);
 
     /*and... boom! go into the kexec'd image
      *LINUX_REBOOT_CMD_KEXEC does not reboot

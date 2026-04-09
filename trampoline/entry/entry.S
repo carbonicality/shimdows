@@ -11,6 +11,22 @@
 .global gdt64_ptr
 .global gdt32_ptr
 
+.section .text.entry, "ax"
+.global trampoline_header
+trampoline_header: 
+    .long 0x53484457 /* magic SHDW */
+    .long 1
+    .quad 0x100000
+    .quad 0x1200000
+    .quad (_start - 0x100000)
+    .quad 0x17F000
+    .quad 0x80000
+    .quad 128
+    .quad 0x90000
+    .quad (4 * 1024 * 1024)
+    .quad 0x490000
+    .quad (4 * 1024 * 1024)
+
 _start:
     cli
 
