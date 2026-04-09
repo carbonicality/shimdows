@@ -54,7 +54,7 @@ TRAMP_ASM := \
 all: launcher trampoline
 
 launcher: ${LAUNCHER_SRCS}
-	$(CC) $(LAUNCHER_CFLAGS) -o $@ $^ $(LAUNCHER_LDFLAGS)
+	$(CC) $(LAUNCHER_CFLAGS) -o launcher.elf $^ $(LAUNCHER_LDFLAGS)
 
 TRAMP_OBJS := $(TRAMP_SRCS:.c=.o) $(TRAMP_ASM:.S=.o)
 

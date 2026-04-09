@@ -4,6 +4,7 @@
  * sonnnnnnnnnnnn im crine
  */
 
+.intel_syntax noprefix
 .code64
 .section .text.entry, "ax"
 .global _start
@@ -114,7 +115,7 @@ _stack_top:
 jump_to_bootmgr:
     mov r10, rdi 
     mov rcx, rsi
-    and rsp, ~0xFULL
+    and rsp, -16
     sub rsp, 32
     jmp r10 
 

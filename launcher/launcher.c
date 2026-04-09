@@ -65,7 +65,7 @@ static int parse_iomem(void)
 
         if (line[0]==' ') continue;
         
-        if (sscanf(line, "%lx-%lx : %63[^\n]", &start, &end, type)==3) {
+        if (sscanf(line, "%llx-%llx : %63[^\n]", &start, &end, type)==3) {
             if (num_regions >= MAX_MEM_REGIONS) break;
             mem_regions[num_regions].start=start;
             mem_regions[num_regions].end=end;
