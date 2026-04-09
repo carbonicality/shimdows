@@ -23,7 +23,7 @@
 /*kexec syscall defs*/
 #define __NR_kexec_load 246
 
-#define KEXEC_ARCH_x86_64 (62 << 16)
+#define KEXEC_ARCH_X86_64 (62 << 16)
 #define KEXEC_SEGMENT_MAX 16
 
 struct kexec_segment {
@@ -250,4 +250,34 @@ int main(int argc, char *argv[])
     /*build kexec args*/
     struct kexec_segment segments[2];
     memset(segments,0,sizeof(segments));
+
+    /*payload -> phys load_base*/
+    segments[0].buf = payload;
+    segments[0].bufsz = payload_size;
+    segments[0].mem = (void *)(uintptr_t)hdr->load_base;
+    segments[0].memsz = (hdr->load_size+0xFFF)&~0xFFFULL;
+    
+    uint64_t entry_phys = hdr->load_base + hdr->entry_offset;
+    
+    printf("[launcher] kexec segment: phys=0x%llx size=0x%zx\n",(unsigned long long)(uintptr_t)segments[0].mem,segments[0].memsz);
+    printf("[launcher] entry point: 0x%llx\n",(unsigned long long)entry_phys);
+
+    /*reg with kexec*/
+    long ret = kexec_load(entry_phys,1,segments,KEXEC_ARCH_X86_64);
+    if (ret<0) {
+        fprintf(stderr,"[launcher] kexec_load failed: %s (errno=%d)\n",strerror(errno),errno);
+        return 1;
+    }
+
+    printf("[launcher] kexec_load OK, jumping to trampoline.\n");
+    printf("[launcher] no return from here\n");
+
+    /*and... boom! go into the kexec'd image
+     *LINUX_REBOOT_CMD_KEXEC does not reboot
+     */
+    syscall(SYS_reboot, LINUX_REBOOT_MAGIC1, LINUX_REBOOT_MAGIC2, LINUX_REBOOT_CMD_KEXEC, NULL);
+    
+    /*unreachable*/
+    fprintf(stderr,"[launcher] reboot syscall returned, something is wrong\n");
+    return 1;
 }
