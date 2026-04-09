@@ -113,3 +113,64 @@ static void *load_file(const char *path, size_t *out_size)
     printf("[launcher] loaded %s (%zu bytes)\n",path,*out_size);
     return buf;
 }
+
+/*trampoline payload hdr*/
+typedef struct __attribute__((packed)) {
+    uint32_t magic;
+    uint32_t version;
+    uint64_t load_base;
+    uint64_t load_size;
+    uint64_t entry_offset;
+    uint64_t stack_phys;
+    uint64_t memmap_offset;
+    uint64_t memmap_max_entries;
+    uint64_t bootmgr_offset;
+    uint64_t bootmgr_size;
+    uint64_t winload_offset;
+    uint64_t winload_size;
+} trampoline_header_t;
+
+#define TRAMPOLINE_MAGIC 0x53484457 /*SHDW (shimdows)*/
+
+/*embed mem map into payload*/
+typedef struct __attribute__((packed)) {
+    uint64_t base;
+    uint64_t size;
+    uint32_t type; /*efi mem type*/
+    uint32_t pad;
+} launcher_mem_entry_t;
+
+static int build_memmap(trampoline_header_t *hdr, void *payload)
+{
+    launcher_mem_entry_t *entries = (launcher_mem_entry_t *)((uint8_t *)payload+hdr->memmap_offset);
+    uint64_t max = hdr->memmap_max_entries;
+    uint64_t n = 0;
+    
+    for (int i=0; i<num_regions && n<max; i++) {
+        mem_region_t *r = &mem_regions[i];
+        if (strncmp(r->type,"System RAM",10)!=0) continue;
+        uint64_t base = (r->start+0xFFF)&~0xFFFULL;
+        uint64_t end = r->end & ~0xFFFULL;
+        if (end <= base) continue;
+        entries[n].base=base;
+        entries[n].size=end-base;
+        entries[n].type=7; /*EFI_CONVENTIONAL_MEMORY*/
+        entries[n].pad=0;
+        n++;
+    }
+
+    /*mark trampoline region as EFI_LOADER_CODE so winload doesnt stomp it*/
+    if (n<max) {
+        entries[n].base=hdr->load_base&~0xFFFULL;
+        entries[n].size=(hdr->load_size+0xFFF)&~0xFFFULL;
+        entries[n].type=1;
+        entries[n].pad=0;
+        n++;
+    }
+
+    printf("[launcher] built memory map %llu entries\n",(unsigned long long)n);
+    
+    uint64_t *count_ptr=(uint64_t *)((uint8_t *)payload + hdr->memmap_offset-sizeof(uint64_t));
+    *count_ptr = n;
+    return 0;
+}
