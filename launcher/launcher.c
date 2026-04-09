@@ -174,3 +174,36 @@ static int build_memmap(trampoline_header_t *hdr, void *payload)
     *count_ptr = n;
     return 0;
 }
+
+static int embed_windows_binaries(trampoline_header_t *hdr, void *payload, const char *bootmgr_path, const char *winload_path)
+{
+    size_t sz;
+    void *data;
+    /*bootmgfw*/
+    data = load_file(bootmgr_path, &sz);
+    if (!data) return -1;
+    if (sz > hdr->bootmgr_size) {
+        fprintf(stderr,"[launcher] bootmgfw.efi too large (%zu > %llu)\n",sz,(unsigned long long)hdr->bootmgr_size);
+        free(data);
+        return -1;
+    }
+    memcpy((uint8_t *)payload+hdr->bootmgr_offset,data,sz);
+    /*write actual size just before the blob*/
+    *(uint64_t *)((uint8_t *)payload+hdr->bootmgr_offset-8)=sz;
+    free(data);
+    
+    /*winload*/
+    data = load_file(winload_path,&sz);
+    if (!data) return -1;
+    if (sz > hdr->winload_size) {
+        fprintf(stderr,"[launcher] winload.efi too large (%zu > %llu)\n",sz,(unsigned long long)hdr->winload_size);
+        free(data);
+        return -1;
+    }
+    memcpy((uint8_t *)payload+hdr->winload_offset,data,sz);
+    *(uint64_t *)((uint8_t *)payload+hdr->winload_offset-8)=sz;
+    free(data);
+    printf("[launcher] embedded Windows binaries into payload\n");
+    return 0;
+}
+
