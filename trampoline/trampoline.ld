@@ -5,7 +5,7 @@ ENTRY(_start);
 SECTIONS
 {
     . = LOAD_BASE;
-    
+
     .text.entry : {
         *(.text.entry)
     }
@@ -37,41 +37,42 @@ SECTIONS
 
     . = LOAD_BASE + 0x80000;
     .memmap : {
+        _memmap_count = .;
         . += 8;
-        _memmap_count = . - 8;
         _memmap_entries = .;
         . += (128 * 24);
     }
 
     . = LOAD_BASE + 0x90000;
     .bootmgr_region : {
+        _bootmgr_size = .;
         . += 8;
-        _bootmgr_size = . - 8;
         _bootmgr_data = .;
         . += (4 * 1024 * 1024);
     }
 
-    . = LOAD_BASE + 0x490000;
+    . = LOAD_BASE + 0x4A0000;
     .winload_region : {
+        _winload_size = .;
         . += 8;
-        _winload_size = . - 8;
         _winload_data = .;
         . += (4 * 1024 * 1024);
     }
 
+    . = LOAD_BASE + 0x8B0000;
     .pool : {
         _pool_start = .;
         . += (4 * 1024 * 1024);
         _pool_end = .;
     }
 
-    . = LOAD_BASE + 0xC90000;
+    . = LOAD_BASE + 0xCB0000;
     .image_load : {
         _image_load_area = .;
         . += (4 * 1024 * 1024);
     }
 
-    . = LOAD_BASE + 0x1090000;
+    . = LOAD_BASE + 0x10C0000;
     .winload_load : {
         _winload_load_area = .;
         . += (4 * 1024 * 1024);
