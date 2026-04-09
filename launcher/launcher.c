@@ -207,3 +207,47 @@ static int embed_windows_binaries(trampoline_header_t *hdr, void *payload, const
     return 0;
 }
 
+/*main*/
+int main(int argc, char *argv[])
+{
+    if (argc < 4) {
+        fprintf(stderr,"usage: %s <trampoline.bin> <bootmgfw.efi> <winload.efi>\n",argv[0]);
+        return 1;
+    }
+
+    const char *trampoline_main=argv[1];
+    const char *bootmgr_path=argv[2];
+    const char *winload_path=argv[3];
+
+    printf("[launcher] shimdows launcher starting\n");
+    
+    /*parse phys mem*/
+    if (parse_iomem()<0) return 1;
+
+    /*load trampoline payload*/
+    size_t payload_size;
+    void *payload = load_file(trampoline_path,&payload_size);
+    if (!payload) return 1;
+
+    /*validate hdr*/
+    trampoline_header_t *hdr = (trampoline_header_t *)payload;
+    if (hdr->magic != TRAMPOLINE_MAGIC) {
+        fprintf(stderr,"[launcher] bad trampoline magic: 0x%08X\n",hdr->magic);
+        return 1;
+    }
+    if (hdr->version != 1) {
+        fprintf(stderr, "[launcher] unsupported trampoline version %u\n",hdr->version);
+        return 1;
+    }
+    printf("[launcher] trampoline: load_base=0x%llx size=0x%llx entry_off=0x%llx\n",(unsigned long long)hdr->load_base,(unsigned long long)hdr->load_size,(unsigned long long)hdr->entry_offset);
+
+    /*embed mem map*/
+    if (build_memmap(hdr,payload) < 0) return 1;
+
+    /*embed win binaries*/
+    if (embed_windows_binaries(hdr,payload,bootmgr_path,winload_path)<0) return 1;
+
+    /*build kexec args*/
+    struct kexec_segment segments[2];
+    memset(segments,0,sizeof(segments));
+}
