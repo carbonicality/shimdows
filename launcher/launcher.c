@@ -16,7 +16,9 @@
 #include <sys/reboot.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
-#include <linux/reboot.h>
+#define LINUX_REBOOT_MAGIC1  0xfee1dead
+#define LINUX_REBOOT_MAGIC2  0x28121969
+#define LINUX_REBOOT_CMD_KEXEC 0x45584543
 
 /*kexec syscall defs*/
 #define __NR_kexec_load 246

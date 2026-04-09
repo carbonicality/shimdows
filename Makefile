@@ -11,7 +11,7 @@ LAUNCHER_CFLAGS := \
 	-std=c11 \
 	-I include
 
-LAUNCHER_LDFLAGS := -static
+LAUNCHER_LDFLAGS :=
 
 TRAMP_CFLAGS := \
 	-ffreestanding \
