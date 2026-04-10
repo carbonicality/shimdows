@@ -32,6 +32,240 @@ extern u8 _pool_end;
 extern u8 _image_load_area; /*where we map bootmgfw*/
 extern u8 _winload_load_area; /*where we map winload*/
 
+/*fake filesystem*/
+typedef struct _EFI_FILE_PROTOCOL EFI_FILE_PROTOCOL;
+
+struct _EFI_FILE_PROTOCOL {
+    u64 Revision;
+    EFI_STATUS (__attribute__((ms_abi)) *Open)(EFI_FILE_PROTOCOL*, EFI_FILE_PROTOCOL**, CHAR16*, u64, u64);
+    EFI_STATUS (__attribute__((ms_abi)) *Close)(EFI_FILE_PROTOCOL*);
+    EFI_STATUS (__attribute__((ms_abi)) *Delete)(EFI_FILE_PROTOCOL*);
+    EFI_STATUS (__attribute__((ms_abi)) *Read)(EFI_FILE_PROTOCOL*, u64*, void*);
+    EFI_STATUS (__attribute__((ms_abi)) *Write)(EFI_FILE_PROTOCOL*, u64*, void*);
+    EFI_STATUS (__attribute__((ms_abi)) *GetPosition)(EFI_FILE_PROTOCOL*, u64*);
+    EFI_STATUS (__attribute__((ms_abi)) *SetPosition)(EFI_FILE_PROTOCOL*, u64);
+    EFI_STATUS (__attribute__((ms_abi)) *GetInfo)(EFI_FILE_PROTOCOL*, EFI_GUID*, u64*, void*);
+    EFI_STATUS (__attribute__((ms_abi)) *SetInfo)(EFI_FILE_PROTOCOL*, EFI_GUID*, u64, void*);
+    EFI_STATUS (__attribute__((ms_abi)) *Flush)(EFI_FILE_PROTOCOL*);
+    /*private fields after the protocol*/
+    u8 *data;
+    u64 size;
+    u64 position;
+    bool is_dir;
+};
+
+typedef struct {
+    EFI_FILE_PROTOCOL proto;
+    struct _EFI_SIMPLE_FILE_SYSTEM_PROTOCOL *fs;
+} root_file_t;
+
+/*flat file registry*/
+#define MAX_FAKE_FILES 16
+
+typedef struct {
+    CHAR16 path[256];
+    u8 *data;
+    u64 size;
+} fake_file_entry_t;
+
+static fake_file_entry_t fake_file_table[MAX_FAKE_FILES];
+static int fake_file_count = 0;
+
+void fs_register_file(const CHAR16 *path, u8 *data, u64 size)
+{
+    if (fake_file_count >= MAX_FAKE_FILES) return;
+    /*copy path*/
+    int i = 0;
+    while (path[i] && i<255) {
+        fake_file_table[fake_file_count].path[i]=path[i];
+        i++;
+    }
+    fake_file_table[fake_file_count].path[i]=0;
+    fake_file_table[fake_file_count].data = data;
+    fake_file_table[fake_file_count].size = size;
+    fake_file_count++;
+}
+
+static bool path_eq(const CHAR16 *a, const CHAR16 *b)
+{
+    while (*a && *b) {
+        CHAR16 ca = *a, cb = *b;
+        /*lowercase*/
+        if (ca >= 'A' && ca <= 'Z') ca += 32;
+        if (cb >= 'A' && cb <= 'Z') cb += 32;
+        /*norm slash direction*/
+        if (ca == '\\') ca = '/';
+        if (cb == '\\') cb = '/';
+        if (ca != cb) return false;
+        a++; b++;
+    }
+    return *a == *b;
+}
+
+static EFI_STATUS __attribute__((ms_abi))
+file_Open(EFI_FILE_PROTOCOL *this, EFI_FILE_PROTOCOL **out, CHAR16 *filename, u64 open_mode, u64 attrs)
+{
+    (void)open_mode; (void)attrs;
+    
+    if (!filename || filename[0] == 0 || (filename[0] == '.' && filename[1] == 0)) {
+        *out = this;
+        return EFI_SUCCESS;
+    }
+
+    for (int i=0; i<fake_file_count; i++) {
+        if (path_eq(fake_file_table[i].path, filename)) {
+            EFI_FILE_PROTOCOL *f = mem_alloc(sizeof(EFI_FILE_PROTOCOL));
+            if (!f) return EFI_OUT_OF_RESOURCES;
+            /*copy vtable from root*/
+            *f = *this;
+            f->data = fake_file_table[i].data;
+            f->size = fake_file_table[i].size;
+            f->position = 0;
+            f->is_dir = false;
+            *out = f;
+            return EFI_SUCCESS;
+        }
+    }
+    return EFI_NOT_FOUND;
+}
+
+static EFI_STATUS __attribute__((ms_abi))
+file_Close(EFI_FILE_PROTOCOL *this)
+{
+    (void)this;
+    return EFI_SUCCESS;
+}
+
+static EFI_STATUS __attribute__((ms_abi))
+file_Read(EFI_FILE_PROTOCOL *this, u64 *size, void *buf)
+{
+    if (this->is_dir) {
+        *size=0;
+        return EFI_SUCCESS;
+    }
+    u64 remaining = this->size - this->position;
+    u64 to_read = *size < remaining ? *size : remaining;
+    memcpy(buf, this->data + this->position, to_read);
+    this->position += to_read;
+    *size=to_read;
+    return EFI_SUCCESS;
+}
+
+static EFI_STATUS __attribute__((ms_abi))
+file_Write(EFI_FILE_PROTOCOL *this, u64 *size, void *buf)
+{
+    (void)this; (void)size; (void)buf;
+    return EFI_UNSUPPORTED;
+}
+
+static EFI_STATUS __attribute__((ms_abi))
+file_GetPosition(EFI_FILE_PROTOCOL *this, u64 *pos)
+{
+    *pos = this->position;
+    return EFI_SUCCESS;
+}
+
+static EFI_STATUS __attribute__((ms_abi))
+file_SetPosition(EFI_FILE_PROTOCOL *this, u64 pos)
+{
+    if (pos == 0xFFFFFFFFFFFFFFFFULL)
+        this->position = this->size;
+    else
+        this->position = pos < this->size ? pos : this->size;
+    return EFI_SUCCESS;
+}
+
+typedef struct {
+    u64 Size;
+    u64 FileSize;
+    u64 PhysicalSize;
+    u8 CreateTime[16];
+    u8 LastAccessTime[16];
+    u8 ModificationTime[16];
+    u64 Attribute;
+    CHAR16 FileName[2];
+} EFI_FILE_INFO;
+
+#define EFI_FILE_READ_ONLY 0x0000000000000001ULL
+#define EFI_FILE_DIRECTORY 0x0000000000000010ULL
+
+static EFI_STATUS __attribute__((ms_abi))
+file_GetInfo(EFI_FILE_PROTOCOL *this, EFI_GUID *info_type, u64 *buf_size, void *buf)
+{
+    (void)info_type;
+    u64 needed = sizeof(EFI_FILE_INFO);
+    if (*buf_size < needed) {
+        *buf_size = needed;
+        return EFI_BUFFER_TOO_SMALL;
+    }
+    EFI_FILE_INFO *info = (EFI_FILE_INFO *)buf;
+    memset(info, 0, sizeof(*info));
+    info->Size = sizeof(EFI_FILE_INFO);
+    info->FileSize = this->size;
+    info->PhysicalSize = (this->size+511)&~511ULL;
+    info->Attribute = this->is_dir ? EFI_FILE_DIRECTORY : EFI_FILE_READ_ONLY;
+    *buf_size= needed;
+    return EFI_SUCCESS;
+}
+
+static EFI_STATUS __attribute__((ms_abi))
+file_SetInfo(EFI_FILE_PROTOCOL *this, EFI_GUID *info_type, u64 buf_size, void *buf)
+{
+    (void)this;(void)info_type;(void)buf_size;(void)buf;
+    return EFI_UNSUPPORTED;
+}
+
+static EFI_STATUS __attribute__((ms_abi))
+file_Flush(EFI_FILE_PROTOCOL *this)
+{
+    (void)this;
+    return EFI_SUCCESS;
+}
+
+static EFI_FILE_PROTOCOL g_root_file;
+
+static void init_root_file(void)
+{
+    memset(&g_root_file, 0, sizeof(g_root_file));
+    g_root_file.Revision = 0x00010000;
+    g_root_file.Open = file_Open;
+    g_root_file.Close = file_Close;
+    g_root_file.Delete = file_Close;
+    g_root_file.Read = file_Read;
+    g_root_file.Write = file_Write;
+    g_root_file.GetPosition = file_GetPosition;
+    g_root_file.SetPosition = file_SetPosition;
+    g_root_file.GetInfo = file_GetInfo;
+    g_root_file.SetInfo = file_SetInfo;
+    g_root_file.Flush = file_Flush;
+    g_root_file.is_dir = true;
+    g_root_file.data = NULL;
+    g_root_file.size = 0;
+    g_root_file.position = 0;
+}
+
+/*simple file system protocol*/
+typedef struct _EFI_SIMPLE_FILE_SYSTEM_PROTOCOL {
+    u64 Revision;
+    EFI_STATUS (__attribute__((ms_abi)) *OpenVolume)(
+        struct _EFI_SIMPLE_FILE_SYSTEM_PROTOCOL *this,
+        EFI_FILE_PROTOCOL **root
+    );
+} EFI_SIMPLE_FILE_SYSTEM_PROTOCOL;
+
+static EFI_STATUS __attribute__((ms_abi))
+sfs_OpenVolume(EFI_SIMPLE_FILE_SYSTEM_PROTOCOL *this, EFI_FILE_PROTOCOL **root)
+{
+    (void)this;
+    *root=&g_root_file;
+    return EFI_SUCCESS;
+}
+
+static EFI_SIMPLE_FILE_SYSTEM_PROTOCOL g_sfs = {
+    .Revision = 0x00010000,
+    .OpenVolume = sfs_OpenVolume,
+};
+
 /*launcher mem entry*/
 typedef struct __attribute__((packed)) {
     u64 base;
@@ -465,6 +699,20 @@ void trampoline_main(void)
 
     /*create a handle for bootmgfw itself*/
     EFI_HANDLE bm_handle=alloc_handle();
+
+    /*register fs on bootmgfw handle*/
+    static const EFI_GUID sfs_guid = EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID;
+    install_protocol(bm_handle, &sfs_guid, &g_sfs);
+    init_root_file();
+
+    /*register the BCD*/
+    extern u8 _bcd_data;
+    extern u64 _bcd_size;
+    static CHAR16 bcd_path[] = {
+        'E','F','I','\\','M','i','c','r','o','s','o','f','t',
+        '\\','B','o','o','t','\\','B','C','D', 0
+    };
+    fs_register_file(bcd_path, &_bcd_data, _bcd_size);
 
     EFI_LOADED_IMAGE_PROTOCOL *bm_li = mem_alloc(sizeof(*bm_li));
     static const EFI_GUID loaded_image_guid = EFI_LOADED_IMAGE_PROTOCOL_GUID;
